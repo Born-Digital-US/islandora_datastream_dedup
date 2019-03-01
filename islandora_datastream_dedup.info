@@ -1,0 +1,4 @@
+name = Dedup Datastreams
+package = BD
+description = Provides a drush command for removing redundant OBJ datastream versions.
+core = 7.x
