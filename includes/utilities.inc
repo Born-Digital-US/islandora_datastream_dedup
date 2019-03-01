@@ -41,7 +41,7 @@ function _datastream_dedup($mimetype = "image/tiff", $op = 'preview', $dsid = 'O
       drush_log($msg, 'ok');
     }
     do {
-      $qp->solrLimit = $qp->solrStart + $range;
+      $qp->solrLimit = $range;
       timer_start('ddds_execute_solr_query');
       $qp->executeQuery(FALSE);
       timer_stop('ddds_execute_solr_query');
