@@ -99,6 +99,15 @@ Total size of duplicate @dsid datastreams deleted = @datastreams_deleted_total_s
 
     if(drupal_is_cli()) {
       drush_print("\n" . $report);
+
+      $rows = array(
+        array($query, 'count or bytes', 'formatted' ),
+        array('object count', $object_count, ''),
+        array('datastream count', $datastream_count,''),
+        array('total datastream file size', $datastream_total_size, format_size($datastream_total_size)),
+        array('size of duplicate datastream files', $datastream_total_size - $first_datastream_total_size, format_size($datastream_total_size - $first_datastream_total_size)),
+      );
+      drush_print_table($rows, TRUE);
     }
     else {
       drupal_set_message($report);
