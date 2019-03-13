@@ -5,15 +5,23 @@ function _datastream_dedup($op = 'preview', $dsid = 'OBJ', $options = array()) {
   $query = array();
   $timer = FALSE;
 
+  $data = str_getcsv($dsid);
+  $data = array_map('trim',$data);
+  $dsids = array_filter($data);
+
+
   $collection_stats_record_template = [
     'object count' => 0,
     'datastream count' => 0,
-    'datastream total_size' => 0,
+    'datastream total size' => 0,
     'first datastream total size' => 0,
     'datastreams deleted count' => 0,
     'datastreams deleted total size' => 0,
   ];
   $collection_stats = ['All Objects' => $collection_stats_record_template];
+  foreach($dsids as $dsid) {
+    $collection_stats['All Objects'][$dsid] = $collection_stats_record_template;
+  }
 
   $pids = array();
   $exclude = '';
@@ -32,7 +40,7 @@ function _datastream_dedup($op = 'preview', $dsid = 'OBJ', $options = array()) {
             $data = array_map('trim',$data);
             $data = array_filter($data);
             if(!empty($data)) {
-              $pids += $data;
+              $pids = array_merge($pids, $data);
             }
           }
           fclose($fp);
@@ -45,16 +53,23 @@ function _datastream_dedup($op = 'preview', $dsid = 'OBJ', $options = array()) {
         $data = str_getcsv($value);
         $data = array_map('trim',$data);
         $data = array_filter($data);
-        $pids += $data;
+        $pids = array_merge($pids, $data);
         break;
     }
   }
 
+  $pids = array_unique($pids);
+
+
+
   if(!empty($pids)) {
     $query_pids = array();
     foreach($pids as $i => $pid) {
-      $collection_stats[$pid] = $collection_stats_record_template;
       $query_pids[] = 'RELS_EXT_isMemberOfCollection_uri_s:"info:fedora/' . $pid . '"';
+
+      foreach($dsids as $dsid) {
+        $collection_stats[$pid][$dsid] = $collection_stats_record_template;
+      }
     }
     $query[] = $exclude . '(' . implode(' OR ',$query_pids) . ')';
   }
@@ -63,8 +78,16 @@ function _datastream_dedup($op = 'preview', $dsid = 'OBJ', $options = array()) {
 
   $qp = new IslandoraSolrQueryProcessor();
 
+  $fl = array(
+    'PID',
+    'fgs_label_s',
+  );
+  foreach($dsids as $dsid_value) {
+    $fl[] = 'RELS_EXT_isMemberOfCollection_uri_s, fedora_datastream_version_' . $dsid_value . '_SIZE_ms';
+  }
+
   $qp->buildQuery($query);
-  $qp->solrParams['fl'] = 'PID, fgs_label_s, RELS_EXT_isMemberOfCollection_uri_s, fedora_datastream_version_' . $dsid . '_SIZE_ms';
+  $qp->solrParams['fl'] = implode(', ', $fl);
   $qp->solrStart = 0;
   $qp->solrLimit = 1;
   if($timer) timer_start('ddds_execute_solr_query');
@@ -102,36 +125,41 @@ function _datastream_dedup($op = 'preview', $dsid = 'OBJ', $options = array()) {
         $collection_stats['All Objects']['object count']++;
         $collection_stats[$pid]['object count']++;
         $pid = str_replace('info:fedora/', '', $object_result['solr_doc']['RELS_EXT_isMemberOfCollection_uri_s']);
-        if (!empty($object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'])) {
+        foreach($dsids as $dsid) {
+          if (!empty($object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'])) {
 
-          $first_datastream_size = reset($object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms']);
-          $collection_stats['All Objects']['first datastream total size'] += $first_datastream_size;
-          $collection_stats[$pid]['first datastream total size'] += $first_datastream_size;
-          foreach ($object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'] as $ds_size) {
-            $collection_stats['All Objects']['datastream count']++;
-            $collection_stats[$pid]['datastream count']++;
-            $collection_stats['All Objects']['datastream total size'] += $ds_size;
-            $collection_stats[$pid]['datastream total size'] += $ds_size;
-          }
-          if (($op == 'all' || $op == 'dups') && count($object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms']) > 1) {
-            if(user_access('delete fedora objects and datastreams')) {
-              $object = islandora_object_load($object_result['solr_doc']['PID']);
-              if (!empty($object[$dsid])) {
-                $ds = $object[$dsid];
-                $leave = $op == 'all' ? 0 : 1;
-                while ($ds->count() > $leave) {
-                  $key = $ds->count() - 1;
-                  if($timer) timer_start('ddds_delete');
-                  unset($ds[$key]);
-                  if($timer) timer_stop('ddds_delete');
-                  $collection_stats['All Objects']['datastreams deleted count']++;
-                  $collection_stats[$pid]['datastreams deleted count']++;
-                  $collection_stats['All Objects']['datastreams deleted total size'] += $object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'][$key];
-                  $collection_stats[$pid]['datastreams deleted total size'] += $object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'][$key];
+            $first_datastream_size = reset($object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms']);
+            $collection_stats['All Objects'][$dsid]['first datastream total size'] += $first_datastream_size;
+            $collection_stats[$pid][$dsid]['first datastream total size'] += $first_datastream_size;
+            foreach ($object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'] as $ds_size) {
+              $collection_stats['All Objects'][$dsid]['datastream count']++;
+              $collection_stats[$pid][$dsid]['datastream count']++;
+              $collection_stats['All Objects'][$dsid]['datastream total size'] += $ds_size;
+              $collection_stats[$pid][$dsid]['datastream total size'] += $ds_size;
+            }
+            if (($op == 'all' || $op == 'dups') && count($object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms']) > 1) {
+              if(user_access('delete fedora objects and datastreams')) {
+                $object = islandora_object_load($object_result['solr_doc']['PID']);
+                if (!empty($object[$dsid])) {
+                  $ds = $object[$dsid];
+                  $leave = $op == 'all' ? 0 : 1;
+                  while ($ds->count() > $leave) {
+                    $key = $ds->count() - 1;
+                    if($timer) timer_start('ddds_delete');
+                    unset($ds[$key]);
+                    if($timer) timer_stop('ddds_delete');
+                    $collection_stats['All Objects'][$dsid]['datastreams deleted count']++;
+                    $collection_stats['All Objects']['datastreams deleted count']++;
+                    $collection_stats[$pid]['datastreams deleted count']++;
+                    $collection_stats['All Objects'][$dsid]['datastreams deleted total size'] += $object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'][$key];
+                    $collection_stats['All Objects']['datastreams deleted total size'] += $object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'][$key];
+                    $collection_stats[$pid][$dsid]['datastreams deleted total size'] += $object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'][$key];
+                  }
                 }
               }
             }
           }
+
         }
       }
 
@@ -152,16 +180,18 @@ function _datastream_dedup($op = 'preview', $dsid = 'OBJ', $options = array()) {
 
     $rows = [['', 'DSID', 'Objects', 'Datastreams', 'File size', 'Dups file size', 'Dups deleted', 'Dups deleted size']];
     foreach($collection_stats as $id => $stats) {
-      $rows[] = array(
-        $id,
-        $dsid,
-        $stats['object count'],
-        $stats['datastream count'],
-        format_size($stats['datastream total size']),
-        format_size($stats['datastream total size'] - $stats['first datastream total size']),
-        $stats['datastreams deleted count'],
-        format_size($stats['datastreams deleted total size']),
-      );
+      foreach($dsids as $dsid) {
+        $rows[] = array(
+          $id,
+          $dsid,
+          $stats[$dsid]['object count'],
+          $stats[$dsid]['datastream count'],
+          format_size($stats[$dsid]['datastream total size']),
+          format_size($stats[$dsid]['datastream total size'] - $stats['first datastream total size']),
+          $stats[$dsid]['datastreams deleted count'],
+          format_size($stats[$dsid]['datastreams deleted total size']),
+        );
+      }
     }
 
 
