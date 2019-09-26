@@ -137,23 +137,28 @@ function _datastream_dedup($op = 'preview', $dsid = 'OBJ', $options = array()) {
               $collection_stats['All Objects'][$dsid]['datastream total size'] += $ds_size;
               $collection_stats[$pid][$dsid]['datastream total size'] += $ds_size;
             }
-            if (($op == 'all' || $op == 'dups') && count($object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms']) > 1) {
+            if ($op == 'all' || $op == 'dups') {
               if(user_access('delete fedora objects and datastreams')) {
                 $object = islandora_object_load($object_result['solr_doc']['PID']);
                 if (!empty($object[$dsid])) {
                   $ds = $object[$dsid];
-                  $leave = $op == 'all' ? 0 : 1;
-                  while ($ds->count() > $leave) {
-                    $key = $ds->count() - 1;
-                    if($timer) timer_start('ddds_delete');
-                    unset($ds[$key]);
-                    if($timer) timer_stop('ddds_delete');
-                    $collection_stats['All Objects'][$dsid]['datastreams deleted count']++;
-                    $collection_stats['All Objects']['datastreams deleted count']++;
-                    $collection_stats[$pid]['datastreams deleted count']++;
-                    $collection_stats['All Objects'][$dsid]['datastreams deleted total size'] += $object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'][$key];
-                    $collection_stats['All Objects']['datastreams deleted total size'] += $object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'][$key];
-                    $collection_stats[$pid][$dsid]['datastreams deleted total size'] += $object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'][$key];
+                  if ($op == 'all' || ($op == 'dups' && count($object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms']) > 1)) {
+                    while ($ds->count() > 1) {
+                      $key = $ds->count() - 1;
+                      if($timer) timer_start('ddds_delete');
+                      unset($ds[$key]);
+                      if($timer) timer_stop('ddds_delete');
+                      $collection_stats['All Objects'][$dsid]['datastreams deleted count']++;
+                      $collection_stats['All Objects']['datastreams deleted count']++;
+                      $collection_stats[$pid]['datastreams deleted count']++;
+                      $collection_stats['All Objects'][$dsid]['datastreams deleted total size'] += $object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'][$key];
+                      $collection_stats['All Objects']['datastreams deleted total size'] += $object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'][$key];
+                      $collection_stats[$pid][$dsid]['datastreams deleted total size'] += $object_result['solr_doc']['fedora_datastream_version_' . $dsid . '_SIZE_ms'][$key];
+                    }
+                  }
+                  if ($op == 'all') {
+                    drush_log($op, 'ok');
+                    $object->purgeDatastream($dsid);
                   }
                 }
               }
