@@ -1,8 +1,10 @@
-# Islandora Datastream Dedup 
+# Islandora Datastream Dedup
 
 ## Introduction
 
-This module provides a drush command that permits permanently removing older datastream versions, leaving only the most recent. It was developed for a case where multiple versions of very large OBJ datastreams had unintentionally been created and needed to be removed to recover server storage space.
+This module provides a drush command that permits permanently removing older datastream versions, leaving only the most recent.
+It was developed for a case where multiple versions of very large OBJ datastreams had unintentionally been created and needed
+to be removed to recover server storage space.
 
 ## Requirements
 
@@ -22,25 +24,33 @@ No configuration is required for this module.
 
 ### Usage
 
-This module provides a single drush command: `dedup-datastreams` (alias `ddds`)
+```$xslt
+drush dedup-datastreams --help
+Removes older versions of a datastream, preserving the current version. Additional options to remove all datastreams, preview-only, filter by collection, content model.
+
+Examples:
+ drush ddds -u 1 --ds=OBJ                Delete duplicate OBJ datastreams whose mimetype is "image/jpeg", and show timing statistics.
+ --mimetype="image/jpeg" --op=nuke-dups
+ --timer
+ drush ddds  -u 1 --ds=OBJ               Display stats about duplicate OBJ datastreams where the mimetype is "image/tiff". No datastreams will be deleted
+ --mimetype="image/tiff"
 
 Options:
+ --cm                                      Optional: Comma-separated list of content model pids. Restricts datastream deduping to objects that match these content-models.
+                                           E.g. `--cm=islandora:newspaperPageCModel,islandora:pageCModel
+ --collection-pids                         Optional: Provide one or more collection pids to include children of. Separate multiple pids with commas
+ --collection-pids-file                    Optional: Provide path to a file with collection pids to exclude children of. One pid per line.
+ --ds                                      A datastream identifier, e.g. "TN" or "OBJ" Required.
+ --exclude-pids                            Optional: Negate the collection pids, i.e. exclude children of the pid/pids provided by collection-pids-file and collection-pid.
+ --mimetype                                Optional: The mimetype that the datastream uses. E.g. "image/jpeg", or "image/tiff"
+ --op                                      Optional: This must be set to "nuke-dups" or "nuke-all" to actually perform deletion of the datastreams. Acceptable values are:
+                                           "preview-dups" (report on duplicate datastreams), "preview-all" (report on all copies of the datastream), "nuke-dups" (delete
+                                           duplicate datastreams), and "nuke-all" (delete all copies of the datastream). If not provided, defaults to "preview-dups".
+ --timer                                   Optional: Output time stats.
 
-| Option | Info |
-|---|---|
-| --ds | **[Required]** A datastream identifier, e.g. `--ds=TN` or `--ds=OBJ` |
-| --mimetype | **[Required]** The mimetype that the datastream uses. E.g. `--mimetyp="image/jpeg"` |
-| --nuke | **[Optional]** This flag must be set to actually perform deletion of the datastreams, e.g. `--nuke`. Otherwise you will only see a report that previews what would have been deleted. |
-| --timer | **[Optional]** Output time stats, e.g. `--timer`. |
+Aliases: ddds
 
-
-## Examples:
-
-- `drush ddds -u 1 --ds=OBJ --mimetype="image/jpeg" --nuke --timer`
-   Delete duplicate OBJ datastreams whose mimetype is "image/jpeg", and show timing statistics.
-- `drush ddds  -u 1 --ds=OBJ --mimetype="image/tiff"`
-   Display stats about duplicate OBJ datastreams where the mimetype is "image/tiff". No datastreams will be deleted
-
+```
 
 
 ## Troubleshooting/Issues
